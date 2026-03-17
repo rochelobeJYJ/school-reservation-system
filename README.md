@@ -47,7 +47,8 @@
 5. 생성된 **웹 앱 URL**을 사용자들에게 공유하면 끝입니다!
 
 ## 📸 스크린샷 (Screenshots)
-*(여기에 시스템의 메인 화면, 예약 모달창, 모바일 화면 등의 캡처 이미지를 추가해 주세요. 예: `![메인화면](이미지주소)`)*
+<img width="1868" height="777" alt="image" src="https://github.com/user-attachments/assets/6dd40aae-0a54-4f53-8319-7ea5db75d48c" />
+
 
 ## 🛠 기술 스택 (Tech Stack)
 * Frontend: HTML5, Vanilla JS, Bootstrap 5.3, SweetAlert2
