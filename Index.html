@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  
+  <style>
+    body { background-color: #f4f6f9; font-family: 'Pretendard', sans-serif; word-break: keep-all; }
+    .header-area { background: linear-gradient(135deg, #3f51b5, #283593); color: white; border-radius: 12px; padding: 18px 24px; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.15); }
+    .calendar-container { overflow-x: auto; padding-top: 5px; }
+    .week-grid { display: flex; min-width: 800px; gap: 10px; }
+    .day-column { flex: 1; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid #e0e0e0; display: flex; flex-direction: column; }
+    .day-header { text-align: center; padding: 10px; background: #e8eaf6; font-weight: bold; border-radius: 8px 8px 0 0; border-bottom: 1px solid #e0e0e0; }
+    .day-header.today { background: #c5cae9; color: #1a237e; }
+    .day-body { padding: 10px; flex-grow: 1; min-height: 400px; position: relative; }
+    .add-btn-area { text-align: center; margin-bottom: 15px; }
+    
+    .res-card { padding: 8px; margin-bottom: 10px; border-radius: 5px; cursor: pointer; transition: 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-left: 4px solid transparent; }
+    .res-card:hover { transform: translateY(-2px); box-shadow: 0 3px 6px rgba(0,0,0,0.15); }
+    .purpose-parent { background-color: #e3f2fd; border-left-color: #1e88e5; } 
+    .purpose-student { background-color: #e8f5e9; border-left-color: #43a047; } 
+    .purpose-meeting { background-color: #fff3e0; border-left-color: #fb8c00; } 
+    .purpose-council { background-color: #f3e5f5; border-left-color: #8e24aa; } 
+    .purpose-etc { background-color: #f5f5f5; border-left-color: #9e9e9e; }     
+
+    .res-time { font-weight: 800; color: #333; display: block; margin-bottom: 3px; font-size: 0.95rem; }
+    .res-info { font-size: 0.85rem; color: #555; display: block; }
+    
+    .loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.7); display: none; justify-content: center; align-items: center; z-index: 9999; }
+    
+    .fab {
+      position: fixed; bottom: 30px; right: 30px; width: 60px; height: 60px;
+      background: linear-gradient(135deg, #3f51b5, #1a237e); color: white;
+      border-radius: 50%; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      display: flex; justify-content: center; align-items: center;
+      font-size: 32px; font-weight: 300; cursor: pointer; z-index: 1040;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .fab:hover { transform: scale(1.1); box-shadow: 0 6px 14px rgba(0,0,0,0.4); }
+  </style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner-border text-primary" role="status"></div>
+</div>
+
+<div class="container-fluid px-3 px-md-4 pt-3 pb-5">
+  
+  <div class="header-area">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-center">
+      <div class="d-flex flex-column flex-md-row align-items-center mb-3 mb-md-0">
+        <h3 class="mb-0 fw-bold me-md-3" style="letter-spacing: -0.5px;">🏫 학생회실(상담실) 예약</h3>
+        <span id="roomStatusBanner" class="badge bg-light text-dark px-3 py-2 mt-2 mt-md-0 shadow-sm rounded-pill" style="font-size: 0.95rem;">
+          ⏳ 상태 확인 중...
+        </span>
+      </div>
+      <div>
+        <button class="btn btn-light btn-sm mx-1 fw-bold text-primary shadow-sm" onclick="openMyResModal()">내 예약 관리</button>
+        <button class="btn btn-outline-light btn-sm mx-1 shadow-sm text-nowrap" id="adminBtn" onclick="toggleAdmin()">관리자 접속</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="d-flex justify-content-between align-items-center mb-3 mt-4">
+    <button class="btn btn-outline-primary shadow-sm text-nowrap px-2 px-md-3" onclick="changeWeek(-1)">◀ 이전</button>
+    <div class="text-center flex-grow-1 px-2">
+      <h5 id="weekDisplay" class="mb-0 fw-bold text-dark" style="font-size: clamp(1rem, 4vw, 1.3rem);">달력을 불러오는 중...</h5>
+    </div>
+    <button class="btn btn-outline-primary shadow-sm text-nowrap px-2 px-md-3" onclick="changeWeek(1)">다음 ▶</button>
+  </div>
+
+  <div class="calendar-container">
+    <div class="week-grid" id="weekGrid"></div>
+  </div>
+</div>
+
+<div class="fab" onclick="openFabReserveModal()">+</div>
+
+<div class="modal fade" id="reserveModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold text-primary">학생회실(상담실) 예약하기</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row mb-3">
+          <div class="col-6">
+            <label class="form-label">선택 날짜</label>
+            <input type="date" id="resDate" class="form-control" style="cursor: pointer;">
+          </div>
+          <div class="col-6">
+            <label class="form-label text-primary fw-bold">매주 반복 예약</label>
+            <select id="resRepeat" class="form-select border-primary">
+              <option value="1">반복 안함 (이번 주만)</option>
+              <option value="2">2주 연속 예약</option>
+              <option value="3">3주 연속 예약</option>
+              <option value="4">4주 연속 (약 1달)</option>
+              <option value="8">8주 연속 (약 2달)</option>
+            </select>
+          </div>
+        </div>
+        <div class="row mb-3">
+          <div class="col-6">
+            <label class="form-label">시작 시간</label>
+            <select id="resStartTime" class="form-select" onchange="updateDefaultEndTime()"></select>
+          </div>
+          <div class="col-6">
+            <label class="form-label">종료 시간</label>
+            <select id="resEndTime" class="form-select"></select>
+          </div>
+        </div>
+        
+        <div class="mb-3">
+          <label class="form-label">예약자 성함</label>
+          <input type="text" id="resName" class="form-control" placeholder="홍길동" onkeyup="if(event.keyCode===13) document.getElementById('resCommonPw').focus()">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">사용 목적</label>
+          <select id="resPurpose" class="form-select" onchange="toggleDirectInput()"></select>
+          <input type="text" id="resPurposeDirect" class="form-control mt-2" placeholder="상세 목적을 입력하세요" style="display:none;">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">공용 예약 비밀번호</label>
+          <input type="password" id="resCommonPw" class="form-control" onkeyup="if(event.keyCode===13) document.getElementById('resPin').focus()">
+        </div>
+        <div class="mb-3">
+          <label class="form-label text-danger fw-bold">내 예약 PIN (숫자 4자리)</label>
+          <input type="password" id="resPin" class="form-control border-danger" placeholder="수정/취소 시 반드시 필요합니다" maxlength="4" onkeyup="if(event.keyCode===13) document.getElementById('resEmail').focus()">
+        </div>
+        
+        <hr class="mt-4 mb-3 text-muted">
+        <div class="mb-2">
+          <label class="form-label text-muted fw-bold">이메일 주소 <span class="badge bg-secondary ms-1">선택사항</span></label>
+          <input type="email" id="resEmail" class="form-control" placeholder="PIN 번호 및 완료 알림 수신용" onkeyup="if(event.keyCode===13) submitReservation()">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+        <button type="button" class="btn btn-primary px-4" id="btnSubmitRes" onclick="submitReservation()">예약 확정</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="detailModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold">예약 상세 정보</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body bg-light rounded m-3 p-3">
+        <p class="mb-2"><strong>일정:</strong> <span id="dtDate"></span> (<span id="dtTime" class="text-primary fw-bold"></span>)</p>
+        <p class="mb-2"><strong>예약자:</strong> <span id="dtName"></span></p>
+        <p class="mb-0"><strong>목적:</strong> <span id="dtPurpose"></span></p>
+      </div>
+      <div class="modal-body pt-0">
+        <input type="hidden" id="dtId">
+        <div id="pinInputArea">
+          <label class="form-label text-danger fw-bold">※ 예약을 취소하려면 설정한 PIN 번호를 입력하세요.</label>
+          <input type="password" id="dtPin" class="form-control" placeholder="PIN 4자리 입력" onkeyup="if(event.keyCode===13) cancelReservationFromDetail()">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">닫기</button>
+        <button type="button" class="btn btn-danger" onclick="cancelReservationFromDetail()">예약 취소(삭제)</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="myResModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-light">
+        <h5 class="modal-title fw-bold">내 예약 현황 조회</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-2 mb-3 bg-light p-3 rounded">
+          <div class="col-md-5"><input type="text" id="searchName" class="form-control" placeholder="예약자 성함" onkeyup="if(event.keyCode===13) document.getElementById('searchPin').focus()"></div>
+          <div class="col-md-5"><input type="password" id="searchPin" class="form-control" placeholder="PIN 4자리" onkeyup="if(event.keyCode===13) searchMyRes()"></div>
+          <div class="col-md-2 d-grid"><button class="btn btn-primary" onclick="searchMyRes()">조회</button></div>
+        </div>
+        <div id="myResList" class="text-center text-muted py-4">성함과 설정하신 PIN 번호를 입력 후 조회해주세요.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  let currentDate = new Date();
+  let currentAdminPw = '';
+  let isAdminValid = false;
+  let currentTodaysRes = []; 
+  
+  const resModal = new bootstrap.Modal(document.getElementById('reserveModal'));
+  const detailModal = new bootstrap.Modal(document.getElementById('detailModal'));
+  const myResMod = new bootstrap.Modal(document.getElementById('myResModal'));
+
+  document.addEventListener('DOMContentLoaded', () => {
+    generateTimeOptions();
+    google.script.run.withSuccessHandler(purposes => {
+      const select = document.getElementById('resPurpose');
+      purposes.forEach(p => select.innerHTML += `<option value="${p}">${p}</option>`);
+    }).withFailureHandler(handleError).getSettings();
+    
+    loadWeeklySchedule();
+
+    setInterval(() => {
+      if(currentTodaysRes.length >= 0) updateRoomStatus();
+    }, 60000);
+  });
+
+  function handleError(err) {
+    Swal.fire('서버 오류', err.message, 'error');
+    showLoading(false);
+    if(document.getElementById('btnSubmitRes')) document.getElementById('btnSubmitRes').disabled = false;
+  }
+
+  function showLoading(show) { 
+    document.getElementById('loadingOverlay').style.display = show ? 'flex' : 'none'; 
+  }
+
+  function generateTimeOptions() {
+    let options = '';
+    for(let h=7; h<=21; h++) {
+      for(let m=0; m<=50; m+=10) {
+        let timeStr = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+        options += `<option value="${timeStr}">${timeStr}</option>`;
+      }
+    }
+    for(let m=0; m<=30; m+=10) {
+        let timeStr = `22:${String(m).padStart(2,'0')}`;
+        options += `<option value="${timeStr}">${timeStr}</option>`;
+    }
+    document.getElementById('resStartTime').innerHTML = options;
+    document.getElementById('resEndTime').innerHTML = options;
+  }
+
+  function updateDefaultEndTime() {
+    const startVal = document.getElementById('resStartTime').value;
+    if (!startVal) return;
+    let [h, m] = startVal.split(':').map(Number);
+    m += 30; 
+    if (m >= 60) { h += 1; m -= 60; }
+    const endStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    const endSelect = document.getElementById('resEndTime');
+    if (endSelect.querySelector(`option[value="${endStr}"]`)) endSelect.value = endStr;
+  }
+
+  function openFabReserveModal() {
+    const todayStr = new Date(new Date().getTime() - (new Date().getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+    openReserveModal(todayStr);
+  }
+
+  function loadWeeklySchedule() {
+    showLoading(true);
+    let startOfWeek = new Date(currentDate);
+    let day = startOfWeek.getDay();
+    let diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1); 
+    startOfWeek.setDate(diff);
+
+    let endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+
+    const offset = startOfWeek.getTimezoneOffset() * 60000;
+    let startStr = new Date(startOfWeek.getTime() - offset).toISOString().split('T')[0];
+    let endStr = new Date(endOfWeek.getTime() - offset).toISOString().split('T')[0];
+    
+    let startDisp = startStr.replace(/-/g, '.');
+    let endDisp = (startStr.substring(0,4) === endStr.substring(0,4)) ? endStr.substring(5).replace(/-/g, '.') : endStr.replace(/-/g, '.');
+    document.getElementById('weekDisplay').innerText = `${startDisp} ~ ${endDisp}`;
+
+    google.script.run.withSuccessHandler(response => {
+      isAdminValid = response.isAdmin;
+      if(isAdminValid) {
+        document.getElementById('adminBtn').innerText = '관리자 모드 접속 중';
+        document.getElementById('adminBtn').classList.replace('btn-outline-light', 'btn-warning');
+      }
+      renderGrid(startOfWeek, response.reservations);
+      
+      currentTodaysRes = response.todaysRes;
+      updateRoomStatus();
+      showLoading(false);
+    }).withFailureHandler(handleError).getWeeklySchedule(startStr, endStr, currentAdminPw);
+  }
+
+  function updateRoomStatus() {
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+    let inUse = false;
+    let currentRes = null;
+    let nextRes = null;
+
+    currentTodaysRes.sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+    for (let r of currentTodaysRes) {
+      let [sh, sm] = r.startTime.split(':').map(Number);
+      let [eh, em] = r.endTime.split(':').map(Number);
+      let startMins = sh * 60 + sm;
+      let endMins = eh * 60 + em;
+
+      if (currentMinutes >= startMins && currentMinutes < endMins) {
+        inUse = true; currentRes = r; break;
+      } else if (startMins > currentMinutes) {
+        if (!nextRes) nextRes = r;
+      }
+    }
+
+    const banner = document.getElementById('roomStatusBanner');
+    if (inUse) {
+      banner.className = 'badge bg-danger text-white px-3 py-2 mt-2 mt-md-0 shadow-sm rounded-pill';
+      banner.innerHTML = `🔴 사용 중 (${currentRes.startTime} ~ ${currentRes.endTime})`;
+    } else {
+      banner.className = 'badge bg-success text-white px-3 py-2 mt-2 mt-md-0 shadow-sm rounded-pill';
+      let nextText = nextRes ? `(다음: ${nextRes.startTime})` : `(오늘 잔여 없음)`;
+      banner.innerHTML = `🟢 비어 있음 <span class="fw-normal ms-1 opacity-75">${nextText}</span>`;
+    }
+  }
+
+  function renderGrid(startOfWeek, reservations) {
+    const days = ['월', '화', '수', '목', '금', '토', '일'];
+    let gridHtml = '';
+    let todayStr = new Date(new Date().getTime() - (new Date().getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+
+    for(let i=0; i<7; i++) {
+      let loopDate = new Date(startOfWeek);
+      loopDate.setDate(startOfWeek.getDate() + i);
+      let dateStr = new Date(loopDate.getTime() - (loopDate.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+      let isToday = (dateStr === todayStr) ? 'today' : '';
+      
+      gridHtml += `
+        <div class="day-column">
+          <div class="day-header ${isToday}">${dateStr.slice(5)} (${days[i]})</div>
+          <div class="day-body">
+            <div class="add-btn-area">
+              <button class="btn btn-sm btn-outline-secondary w-100" onclick="openReserveModal('${dateStr}')">+ 예약하기</button>
+            </div>
+            ${renderDayCards(dateStr, reservations)}
+          </div>
+        </div>
+      `;
+    }
+    document.getElementById('weekGrid').innerHTML = gridHtml;
+  }
+
+  function renderDayCards(dateStr, reservations) {
+    let dayRes = reservations.filter(r => r.date === dateStr);
+    dayRes.sort((a, b) => a.startTime.localeCompare(b.startTime)); 
+    let html = '';
+    dayRes.forEach(r => {
+      let colorClass = 'purpose-etc';
+      if(r.purpose.includes('학부모')) colorClass = 'purpose-parent';
+      else if(r.purpose.includes('학생회')) colorClass = 'purpose-council';
+      else if(r.purpose.includes('학생')) colorClass = 'purpose-student';
+      else if(r.purpose.includes('회의')) colorClass = 'purpose-meeting';
+
+      html += `<div class="res-card ${colorClass}" onclick="openDetailModal('${r.id}', '${r.date}', '${r.startTime}', '${r.endTime}', '${r.name}', '${r.purpose}')">
+                 <span class="res-time">${r.startTime} ~ ${r.endTime}</span>
+                 <span class="res-info">${r.name} | ${r.purpose}</span>
+               </div>`;
+    });
+    return html;
+  }
+
+  function changeWeek(offset) { currentDate.setDate(currentDate.getDate() + (offset * 7)); loadWeeklySchedule(); }
+  
+  function toggleDirectInput() {
+    const sel = document.getElementById('resPurpose'), direct = document.getElementById('resPurposeDirect');
+    if(sel.value.includes('기타')) { direct.style.display = 'block'; direct.focus(); } 
+    else { direct.style.display = 'none'; direct.value = ''; }
+  }
+
+  function openReserveModal(dateStr) {
+    document.getElementById('resDate').value = dateStr;
+    document.getElementById('resRepeat').value = "1"; 
+    document.getElementById('resStartTime').value = "09:00";
+    document.getElementById('resEndTime').value = "09:30";
+    document.getElementById('resName').value = localStorage.getItem('resName') || '';
+    document.getElementById('resEmail').value = localStorage.getItem('resEmail') || '';
+    document.getElementById('resCommonPw').value = localStorage.getItem('resCommonPw') || '';
+    document.getElementById('resPin').value = localStorage.getItem('resPin') || '';
+    document.getElementById('resPurposeDirect').style.display = 'none';
+    document.getElementById('resPurposeDirect').value = '';
+    
+    resModal.show();
+    setTimeout(() => document.getElementById('resName').focus(), 500);
+  }
+
+  function submitReservation() {
+    const btn = document.getElementById('btnSubmitRes');
+    let selPurp = document.getElementById('resPurpose').value;
+    let dirPurp = document.getElementById('resPurposeDirect').value.trim();
+    let finalPurpose = (selPurp.includes('기타') && dirPurp !== '') ? `${selPurp} - ${dirPurp}` : selPurp;
+
+    const data = {
+      date: document.getElementById('resDate').value,
+      repeatWeeks: parseInt(document.getElementById('resRepeat').value), 
+      startTime: document.getElementById('resStartTime').value,
+      endTime: document.getElementById('resEndTime').value,
+      name: document.getElementById('resName').value,
+      email: document.getElementById('resEmail').value, 
+      purpose: finalPurpose,
+      commonPw: document.getElementById('resCommonPw').value,
+      pin: document.getElementById('resPin').value
+    };
+
+    if(data.startTime >= data.endTime) { Swal.fire('확인', '종료 시간은 시작 시간보다 늦어야 합니다.', 'warning'); return; }
+    if(!data.name || !data.commonPw || !data.pin) { Swal.fire('확인', '이름, 예약비밀번호, PIN을 모두 입력해주세요.', 'warning'); return; }
+
+    localStorage.setItem('resName', data.name);
+    localStorage.setItem('resEmail', data.email);
+    localStorage.setItem('resCommonPw', data.commonPw);
+    localStorage.setItem('resPin', data.pin);
+
+    btn.disabled = true; btn.innerText = "처리 중..."; showLoading(true);
+
+    google.script.run.withSuccessHandler(res => {
+      showLoading(false); btn.disabled = false; btn.innerText = "예약 확정";
+      if(res.success) { 
+        Swal.fire('예약 완료', res.message, 'success').then(() => { resModal.hide(); loadWeeklySchedule(); });
+      } else {
+        Swal.fire('예약 불가', res.message, 'error');
+      }
+    }).withFailureHandler(handleError).addReservation(data);
+  }
+
+  function openDetailModal(id, date, start, end, name, purpose) {
+    document.getElementById('dtId').value = id;
+    document.getElementById('dtDate').innerText = date;
+    document.getElementById('dtTime').innerText = `${start} ~ ${end}`;
+    document.getElementById('dtName').innerText = name;
+    document.getElementById('dtPurpose').innerText = purpose;
+    document.getElementById('dtPin').value = '';
+    document.getElementById('pinInputArea').style.display = isAdminValid ? 'none' : 'block';
+    detailModal.show();
+    if(!isAdminValid) setTimeout(() => document.getElementById('dtPin').focus(), 500);
+  }
+
+  function cancelReservationFromDetail() {
+    const id = document.getElementById('dtId').value, pin = document.getElementById('dtPin').value;
+    if(!isAdminValid && !pin) { Swal.fire('확인', 'PIN 번호를 입력해주세요.', 'warning'); return; }
+    
+    Swal.fire({
+      title: '예약 취소', text: '정말 이 예약을 삭제하시겠습니까?',
+      icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545',
+      confirmButtonText: '네, 삭제합니다', cancelButtonText: '아니요'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        showLoading(true);
+        google.script.run.withSuccessHandler(res => {
+          showLoading(false);
+          if(res.success) {
+            Swal.fire('삭제 완료', res.message, 'success').then(() => { detailModal.hide(); loadWeeklySchedule(); });
+          } else {
+            Swal.fire('오류', res.message, 'error');
+          }
+        }).withFailureHandler(handleError).deleteReservation(id, pin, currentAdminPw);
+      }
+    });
+  }
+
+  function toggleAdmin() {
+    if(isAdminValid) {
+      currentAdminPw = ''; isAdminValid = false;
+      Swal.fire('모드 해제', '관리자 모드가 해제되었습니다.', 'info');
+      document.getElementById('adminBtn').innerText = '관리자 접속';
+      document.getElementById('adminBtn').classList.replace('btn-warning', 'btn-outline-light');
+      loadWeeklySchedule();
+    } else {
+      Swal.fire({
+        title: '관리자 인증', input: 'password', inputPlaceholder: '관리자 비밀번호를 입력하세요',
+        showCancelButton: true, confirmButtonText: '확인', cancelButtonText: '취소'
+      }).then((result) => {
+        if (result.isConfirmed && result.value) {
+          currentAdminPw = result.value; loadWeeklySchedule(); 
+        }
+      });
+    }
+  }
+
+  function openMyResModal() { 
+    document.getElementById('searchName').value = localStorage.getItem('resName') || '';
+    document.getElementById('searchPin').value = localStorage.getItem('resPin') || '';
+    myResMod.show(); 
+    setTimeout(() => {
+      if(document.getElementById('searchName').value && document.getElementById('searchPin').value) searchMyRes();
+      else document.getElementById('searchName').focus();
+    }, 500);
+  }
+
+  function searchMyRes() {
+    const name = document.getElementById('searchName').value, pin = document.getElementById('searchPin').value;
+    if(!name || !pin) { Swal.fire('확인', '성함과 PIN을 입력해주세요.', 'warning'); return; }
+    document.getElementById('myResList').innerHTML = '<div class="text-center py-4">조회 중...</div>';
+    
+    google.script.run.withSuccessHandler(res => {
+      if(res.length === 0) { document.getElementById('myResList').innerHTML = '<div class="text-center text-danger py-4">일치하는 예약 내역이 없습니다.</div>'; return; }
+      let html = '<ul class="list-group">';
+      res.forEach(r => {
+        html += `<li class="list-group-item d-flex justify-content-between align-items-center">
+                   <div><strong class="text-primary">${r.date}</strong> <span class="mx-2">${r.startTime}~${r.endTime}</span> <span class="badge bg-secondary">${r.purpose}</span></div>
+                   <button class="btn btn-outline-danger btn-sm" onclick="cancelMyRes('${r.id}', '${pin}')">취소</button>
+                 </li>`;
+      });
+      html += '</ul>'; document.getElementById('myResList').innerHTML = html;
+    }).withFailureHandler(handleError).getMyReservations(name, pin);
+  }
+
+  function cancelMyRes(id, pin) {
+    Swal.fire({
+      title: '예약 취소', text: '이 예약을 취소하시겠습니까?',
+      icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545',
+      confirmButtonText: '네, 취소합니다', cancelButtonText: '아니요'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        showLoading(true);
+        google.script.run.withSuccessHandler(res => {
+          showLoading(false);
+          if(res.success) { Swal.fire('성공', res.message, 'success').then(() => { searchMyRes(); loadWeeklySchedule(); }); }
+          else { Swal.fire('오류', res.message, 'error'); }
+        }).withFailureHandler(handleError).deleteReservation(id, pin);
+      }
+    });
+  }
+</script>
+</body>
+</html>
